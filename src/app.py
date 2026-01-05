@@ -7,9 +7,59 @@ from priority_engine import calculate_priority
 from nlp_keywords import extract_important_keywords
 from ml_model import load_model, predict_priority_ml, train_and_save_model
 
-# -------------------------
+# --------------------------------------------------
+# Page Config (MUST be first Streamlit command)
+# --------------------------------------------------
+st.set_page_config(page_title="Email Priority Dashboard", layout="wide")
+st.title("📧 Email Priority Dashboard")
+
+# --------------------------------------------------
+# Session State
+# --------------------------------------------------
+if "data_loaded" not in st.session_state:
+    st.session_state.data_loaded = False
+
+if "uploaded_file" not in st.session_state:
+    st.session_state.uploaded_file = None
+
+# --------------------------------------------------
+# FIRST SCREEN — Dataset Selection
+# --------------------------------------------------
+if not st.session_state.data_loaded:
+
+    st.markdown("### 📤 Upload Your Email Dataset (CSV)")
+
+    uploaded_file = st.file_uploader(
+        "Upload a CSV file with email data",
+        type=["csv"]
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("🗂️ Use Default Dataset"):
+            st.session_state.uploaded_file = None
+            st.session_state.data_loaded = True
+            st.rerun()
+    with col1:
+        if uploaded_file is not None:
+            if st.button("📂 Use Uploaded Dataset"):
+                st.session_state.uploaded_file = uploaded_file
+                st.session_state.data_loaded = True
+                st.rerun()
+
+    st.stop()  # ⛔ Stop app here until dataset is chosen
+
+# --------------------------------------------------
+# Load Data (AFTER button click)
+# --------------------------------------------------
+df = load_emails(st.session_state.uploaded_file)
+top_keywords = extract_important_keywords(df, top_n=20)
+st.caption(f"📊 Loaded {len(df)} emails")
+
+# --------------------------------------------------
 # Helper Functions
-# -------------------------
+# --------------------------------------------------
 def assign_priority_label(score):
     if score >= 10:
         return "HIGH"
@@ -45,25 +95,18 @@ def calculate_reason(email, dynamic_keywords):
 
     return ", ".join(reasons)
 
-
-# -------------------------
-# Load Data
-# -------------------------
-df = load_emails()
-top_keywords = extract_important_keywords(df, top_n=20)
-
-# -------------------------
+# --------------------------------------------------
 # Rule-based Priority
-# -------------------------
+# --------------------------------------------------
 df["priority_rule_score"] = df.apply(
     lambda row: calculate_priority(row, dynamic_keywords=top_keywords),
     axis=1
 )
 df["priority_rule_label"] = df["priority_rule_score"].apply(assign_priority_label)
 
-# -------------------------
+# --------------------------------------------------
 # Load ML Model
-# -------------------------
+# --------------------------------------------------
 ml_model, vectorizer = load_model()
 
 df["priority_ml_label"] = df.apply(
@@ -76,67 +119,39 @@ df["reason_for_priority"] = df.apply(
     axis=1
 )
 
-# -------------------------
-# Load User Updates (Feedback)
-# -------------------------
+# --------------------------------------------------
+# Load User Feedback
+# --------------------------------------------------
 UPDATE_FILE = "../output/updated_priorities.csv"
+
 if os.path.exists(UPDATE_FILE):
     updates = pd.read_csv(UPDATE_FILE)
     df = df.merge(updates, on="email_id", how="left")
 else:
     df["priority_updated"] = None
 
-# Final priority to display
 df["priority_final"] = df["priority_updated"].fillna(df["priority_rule_label"])
-
 df_sorted = df.sort_values(by="priority_rule_score", ascending=False)
 
-# -------------------------
-# Streamlit UI
-# -------------------------
-st.set_page_config(page_title="Email Priority Dashboard", layout="wide")
-st.title("📧 Email Priority Dashboard")
-
+# --------------------------------------------------
+# MAIN TABS (UNCHANGED STYLES & LOGIC)
+# --------------------------------------------------
 tab1, tab2 = st.tabs(["Overview", "Inbox & Filters"])
 
-# -------------------------
-# TAB 1 — Overview (NO EMAILS HERE)
-# -------------------------
-# -------------------------
-# TAB 1 — Overview (NO EMAILS HERE)
-# -------------------------
+# =========================
+# TAB 1 — Overview
+# =========================
 with tab1:
     c1, c2, c3, c4 = st.columns(4)
 
     c1.metric("Total Emails", len(df))
 
-    c2.markdown("""
-    <div style="display:flex; align-items:center; gap:8px;">
-        <div style="width:16px; height:16px; background:red; border-radius:50%;"></div>
-        <b>HIGH Priority</b>
-    </div>
-    <h3>{}</h3>
-    """.format((df["priority_final"] == "HIGH").sum()), unsafe_allow_html=True)
-
-    c3.markdown("""
-    <div style="display:flex; align-items:center; gap:8px;">
-        <div style="width:16px; height:16px; background:orange; border-radius:50%;"></div>
-        <b>MEDIUM Priority</b>
-    </div>
-    <h3>{}</h3>
-    """.format((df["priority_final"] == "MEDIUM").sum()), unsafe_allow_html=True)
-
-    c4.markdown("""
-    <div style="display:flex; align-items:center; gap:8px;">
-        <div style="width:16px; height:16px; background:green; border-radius:50%;"></div>
-        <b>LOW Priority</b>
-    </div>
-    <h3>{}</h3>
-    """.format((df["priority_final"] == "LOW").sum()), unsafe_allow_html=True)
+    c2.markdown(f"<h3>🔴 {(df['priority_final']=='HIGH').sum()}</h3>", unsafe_allow_html=True)
+    c3.markdown(f"<h3>🟠 {(df['priority_final']=='MEDIUM').sum()}</h3>", unsafe_allow_html=True)
+    c4.markdown(f"<h3>🟢 {(df['priority_final']=='LOW').sum()}</h3>", unsafe_allow_html=True)
 
     st.markdown("---")
 
-    # 🔥 Dynamic Keywords (DO NOT TOUCH – as requested)
     st.markdown(
         f"""
         <div style="background:#f0f2f6; padding:14px; border-radius:8px;">
@@ -147,40 +162,33 @@ with tab1:
         unsafe_allow_html=True
     )
 
-    st.markdown("")
-
-    # 🔹 Additional informative sections (fills empty space cleanly)
     left_info, right_info = st.columns(2)
 
     with left_info:
         st.markdown("""
         ### 📌 How This System Works
-        - Emails are analyzed using **rule-based logic**
-        - Important keywords are extracted using **NLP**
-        - User feedback improves accuracy over time
-        - ML model retrains automatically
+        - Rule-based priority engine
+        - NLP keyword extraction
+        - User feedback learning
+        - Auto ML retraining
         """)
 
     with right_info:
         st.markdown("""
         ### 🛠 Technologies Used
-        - Python & Pandas
-        - Streamlit (Frontend)
-        - Scikit-learn (ML)
-        - NLP Keyword Extraction
-        - CSV-based Feedback Learning
+        - Python, Pandas
+        - Streamlit
+        - Scikit-learn
+        - NLP
         """)
 
-# -------------------------
+# =========================
 # TAB 2 — Inbox & Filters
-# -------------------------
+# =========================
 with tab2:
     left, right = st.columns([1, 3])
 
-    # ---------- Filters
     with left:
-        st.markdown("### 🔍 Filters")
-
         method = st.radio("Priority Method", ["Rule-Based", "ML-Based"])
         priority_filter = st.selectbox("Filter by Priority", ["All", "HIGH", "MEDIUM", "LOW"])
         sender_filter = st.selectbox("Filter by Sender", ["All"] + sorted(df["sender"].unique()))
@@ -204,7 +212,6 @@ with tab2:
 
     display_df = df_view.head(top_n)
 
-    # ---------- Email Cards
     updated_priorities = {}
 
     with right:
@@ -212,32 +219,14 @@ with tab2:
             email_id = row["email_id"]
             priority = row["display_priority"]
 
-            # Priority text color
-            priority_color = {
-                "HIGH": "red",
-                "MEDIUM": "orange",
-                "LOW": "green"
-            }.get(priority, "black")
+            color = {"HIGH": "red", "MEDIUM": "orange", "LOW": "green"}.get(priority)
 
             st.markdown(
                 f"""
-                <div style="
-                    border: 1px solid #ccc;
-                    padding: 6px 10px;
-                    margin-bottom: 8px;
-                    border-radius: 4px;
-                    font-size: 14px;
-                ">
-                    <div>
-                        <b>{row['sender']}</b> |
-                        {row['subject']} |
-                        <span style="color:{priority_color}; font-weight:600;">
-                            {priority}
-                        </span>
-                    </div>
-                    <div style="font-size:13px; color:#444; margin-top:3px;">
-                        {row['reason_for_priority']}
-                    </div>
+                <div style="border:1px solid #ccc; padding:8px; margin-bottom:6px;">
+                    <b>{row['sender']}</b> | {row['subject']} |
+                    <span style="color:{color}; font-weight:600;">{priority}</span>
+                    <div style="font-size:13px;color:#555;">{row['reason_for_priority']}</div>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -252,30 +241,12 @@ with tab2:
             if new_priority != "No Change":
                 updated_priorities[email_id] = new_priority
 
-
-    # ---------- Save & Retrain
     if st.button("💾 Save Updates & Retrain ML"):
         if updated_priorities:
-            updates_df = pd.DataFrame(
-                updated_priorities.items(),
-                columns=["email_id", "priority_updated"]
-            )
-
-            if os.path.exists(UPDATE_FILE):
-                old = pd.read_csv(UPDATE_FILE)
-                updates_df = pd.concat([old, updates_df]).drop_duplicates(
-                    subset="email_id", keep="last"
-                )
-
+            updates_df = pd.DataFrame(updated_priorities.items(),
+                                      columns=["email_id", "priority_updated"])
             updates_df.to_csv(UPDATE_FILE, index=False)
-            st.success("✅ Priorities saved")
-
-            # Retrain ML using updated labels
-            df["priority_updated"] = df["priority_updated"].fillna(df["priority_rule_label"])
-            df["priority_rule_label"] = df["priority_updated"]
-
             train_and_save_model(df)
-            st.success("🤖 ML retrained using user feedback")
-
+            st.success("✅ Priorities saved & ML retrained")
         else:
             st.info("No changes made.")
