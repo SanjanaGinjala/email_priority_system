@@ -57,6 +57,12 @@ df = load_emails(st.session_state.uploaded_file)
 top_keywords = extract_important_keywords(df, top_n=20)
 st.caption(f"📊 Loaded {len(df)} emails")
 
+try:
+    ml_model, vectorizer = load_model()
+except FileNotFoundError:
+    train_and_save_model(df)
+    ml_model, vectorizer = load_model()
+
 # --------------------------------------------------
 # Helper Functions
 # --------------------------------------------------
@@ -107,7 +113,6 @@ df["priority_rule_label"] = df["priority_rule_score"].apply(assign_priority_labe
 # --------------------------------------------------
 # Load ML Model
 # --------------------------------------------------
-ml_model, vectorizer = load_model()
 
 df["priority_ml_label"] = df.apply(
     lambda row: predict_priority_ml(row, ml_model, vectorizer),
