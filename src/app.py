@@ -243,10 +243,21 @@ with tab2:
 
     if st.button("💾 Save Updates & Retrain ML"):
         if updated_priorities:
-            updates_df = pd.DataFrame(updated_priorities.items(),
-                                      columns=["email_id", "priority_updated"])
+            import os
+
+            # Ensure output directory exists
+            os.makedirs(os.path.dirname(UPDATE_FILE), exist_ok=True)
+
+            updates_df = pd.DataFrame(
+                updated_priorities.items(),
+                columns=["email_id", "priority_updated"]
+            )
+
             updates_df.to_csv(UPDATE_FILE, index=False)
+
             train_and_save_model(df)
+
             st.success("✅ Priorities saved & ML retrained")
         else:
             st.info("No changes made.")
+
