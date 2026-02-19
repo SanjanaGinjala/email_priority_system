@@ -7,25 +7,30 @@ MODEL_DIR = "../models"
 MODEL_PATH = os.path.join(MODEL_DIR, "email_priority_model.pkl")
 VECTORIZER_PATH = os.path.join(MODEL_DIR, "tfidf_vectorizer.pkl")
 
-
 def train_and_save_model(df):
     os.makedirs(MODEL_DIR, exist_ok=True)
 
     # ----- TEXT FEATURES -----
     X_text = df["subject"].fillna("") + " " + df["body"].fillna("")
 
-    # ----- ENSURE BASE LABEL EXISTS -----
+    # ----- ENSURE BASE LABEL -----
     if "priority_rule_label" not in df.columns:
         if "priority" in df.columns:
             df["priority_rule_label"] = df["priority"]
         else:
-            df["priority_rule_label"] = 0  # default LOW
+            df["priority_rule_label"] = 0
 
-    # ----- FINAL LABEL SELECTION -----
+    # ----- FINAL LABELS -----
     if "priority_updated" in df.columns:
         y = df["priority_updated"].fillna(df["priority_rule_label"])
     else:
         y = df["priority_rule_label"]
+
+    # 🚨 CRITICAL SAFETY CHECK
+    if y.nunique() < 2:
+        print("⚠️ Not enough class diversity to train ML model")
+        print("⚠️ Need at least 2 different priority labels")
+        return  # <-- STOP TRAINING
 
     # ----- VECTORIZATION -----
     vectorizer = TfidfVectorizer(
@@ -45,8 +50,7 @@ def train_and_save_model(df):
     joblib.dump(model, MODEL_PATH)
     joblib.dump(vectorizer, VECTORIZER_PATH)
 
-    print("✅ ML model and vectorizer saved successfully")
-
+    print("✅ ML model trained and saved")
 
 def load_model():
     if not os.path.exists(MODEL_PATH) or not os.path.exists(VECTORIZER_PATH):
