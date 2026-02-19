@@ -58,7 +58,7 @@ models/
 # ===============================
 output/
 *.csv
-
+!data/emails_day1.csv
 # ===============================
 # Secrets / Environment Files
 # ===============================

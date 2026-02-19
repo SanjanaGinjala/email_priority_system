@@ -56,7 +56,8 @@ if not st.session_state.data_loaded:
 df = load_emails(st.session_state.uploaded_file)
 top_keywords = extract_important_keywords(df, top_n=20)
 st.caption(f"📊 Loaded {len(df)} emails")
-
+if "priority_rule_label" not in df.columns:
+    df["priority_rule_label"] = df.get("priority", 0)
 try:
     ml_model, vectorizer = load_model()
 except FileNotFoundError:

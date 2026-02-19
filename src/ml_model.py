@@ -2,21 +2,26 @@ import os
 import joblib
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-import pandas as pd
 
-MODEL_PATH = "../models/email_priority_model.pkl"
-VECTORIZER_PATH = "../models/tfidf_vectorizer.pkl"
+MODEL_DIR = "../models"
+MODEL_PATH = os.path.join(MODEL_DIR, "email_priority_model.pkl")
+VECTORIZER_PATH = os.path.join(MODEL_DIR, "tfidf_vectorizer.pkl")
 
 
 def train_and_save_model(df):
-    os.makedirs("../models", exist_ok=True)
+    os.makedirs(MODEL_DIR, exist_ok=True)
 
     # ----- TEXT FEATURES -----
-    X_text = df["subject"] + " " + df["body"]
+    X_text = df["subject"].fillna("") + " " + df["body"].fillna("")
 
-    # ----- LABELS (SAFE FALLBACK) -----
-    # If user feedback exists → use it
-    # Else → use rule-based priority
+    # ----- ENSURE BASE LABEL EXISTS -----
+    if "priority_rule_label" not in df.columns:
+        if "priority" in df.columns:
+            df["priority_rule_label"] = df["priority"]
+        else:
+            df["priority_rule_label"] = 0  # default LOW
+
+    # ----- FINAL LABEL SELECTION -----
     if "priority_updated" in df.columns:
         y = df["priority_updated"].fillna(df["priority_rule_label"])
     else:
@@ -40,7 +45,7 @@ def train_and_save_model(df):
     joblib.dump(model, MODEL_PATH)
     joblib.dump(vectorizer, VECTORIZER_PATH)
 
-    print("✅ ML model and vectorizer saved")
+    print("✅ ML model and vectorizer saved successfully")
 
 
 def load_model():
