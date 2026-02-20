@@ -58,11 +58,18 @@ top_keywords = extract_important_keywords(df, top_n=20)
 st.caption(f"📊 Loaded {len(df)} emails")
 if "priority_rule_label" not in df.columns:
     df["priority_rule_label"] = df.get("priority", 0)
+    
+ml_model = None
+vectorizer = None
+
 try:
     ml_model, vectorizer = load_model()
-except FileNotFoundError:
+except:
     train_and_save_model(df)
-    ml_model, vectorizer = load_model()
+    try:
+        ml_model, vectorizer = load_model()
+    except:
+        st.warning("⚠️ ML model not ready yet. Using rule-based priority only.")
 
 # --------------------------------------------------
 # Helper Functions
@@ -128,7 +135,8 @@ df["reason_for_priority"] = df.apply(
 # --------------------------------------------------
 # Load User Feedback
 # --------------------------------------------------
-UPDATE_FILE = "../output/updated_priorities.csv"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPDATE_FILE = os.path.join(BASE_DIR, "output", "updated_priorities.csv")
 
 if os.path.exists(UPDATE_FILE):
     updates = pd.read_csv(UPDATE_FILE)
