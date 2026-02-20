@@ -121,12 +121,19 @@ df["priority_rule_label"] = df["priority_rule_score"].apply(assign_priority_labe
 # --------------------------------------------------
 # Load ML Model
 # --------------------------------------------------
+# --------------------------------------------------
+# ML-based Priority (SAFE)
+# --------------------------------------------------
 
-df["priority_ml_label"] = df.apply(
-    lambda row: predict_priority_ml(row, ml_model, vectorizer),
-    axis=1
-)
-
+if ml_model is not None and vectorizer is not None:
+    df["priority_ml_label"] = df.apply(
+        lambda row: predict_priority_ml(row, ml_model, vectorizer),
+        axis=1
+    )
+else:
+    # ✅ fallback — NEVER call ML
+    df["priority_ml_label"] = df["priority_rule_label"]
+    
 df["reason_for_priority"] = df.apply(
     lambda row: calculate_reason(row, dynamic_keywords=top_keywords),
     axis=1
