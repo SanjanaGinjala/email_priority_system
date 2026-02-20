@@ -6,6 +6,7 @@ from load_data import load_emails
 from priority_engine import calculate_priority
 from nlp_keywords import extract_important_keywords
 from ml_model import load_model, predict_priority_ml, train_and_save_model
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, recall_score
 
 # --------------------------------------------------
 # Page Config (MUST be first Streamlit command)
@@ -133,7 +134,7 @@ if ml_model is not None and vectorizer is not None:
 else:
     # ✅ fallback — NEVER call ML
     df["priority_ml_label"] = df["priority_rule_label"]
-    
+
 df["reason_for_priority"] = df.apply(
     lambda row: calculate_reason(row, dynamic_keywords=top_keywords),
     axis=1
@@ -152,6 +153,19 @@ else:
     df["priority_updated"] = None
 
 df["priority_final"] = df["priority_updated"].fillna(df["priority_rule_label"])
+# -------------------------------
+# ML Evaluation Preparation
+# -------------------------------
+ml_metrics_available = False
+
+if "priority_ml_label" in df.columns:
+    y_true = df["priority_final"]
+    y_pred = df["priority_ml_label"]
+
+    # Ensure enough class diversity
+    if y_true.nunique() > 1 and y_pred.nunique() > 1:
+        ml_metrics_available = True
+
 df_sorted = df.sort_values(by="priority_rule_score", ascending=False)
 
 # --------------------------------------------------
@@ -172,6 +186,42 @@ with tab1:
     c4.markdown(f"<h3>🟢 {(df['priority_final']=='LOW').sum()}</h3>", unsafe_allow_html=True)
 
     st.markdown("---")
+    st.markdown("## 📈 Model Performance (ML-Based)")
+
+    if ml_metrics_available:
+
+        # Accuracy
+        accuracy = accuracy_score(y_true, y_pred)
+
+        # Precision & Recall for HIGH priority
+        precision_high = precision_score(
+            y_true, y_pred, labels=["HIGH"], average="macro", zero_division=0
+        )
+        recall_high = recall_score(
+            y_true, y_pred, labels=["HIGH"], average="macro", zero_division=0
+        )
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Accuracy", f"{accuracy:.2f}")
+        col2.metric("Precision (HIGH)", f"{precision_high:.2f}")
+        col3.metric("Recall (HIGH)", f"{recall_high:.2f}")
+
+        st.markdown("### 🔍 Confusion Matrix")
+
+        cm = confusion_matrix(
+            y_true, y_pred, labels=["HIGH", "MEDIUM", "LOW"]
+        )
+
+        cm_df = pd.DataFrame(
+            cm,
+            index=["Actual HIGH", "Actual MEDIUM", "Actual LOW"],
+            columns=["Pred HIGH", "Pred MEDIUM", "Pred LOW"]
+        )
+
+        st.dataframe(cm_df)
+
+    else:
+        st.warning("⚠️ ML metrics will appear after sufficient training data is available.")
 
     st.markdown(
         f"""
